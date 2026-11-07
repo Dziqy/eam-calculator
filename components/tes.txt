@@ -1,0 +1,142 @@
+// app/menu/edit-location.tsx
+import * as Location from 'expo-location'; // Import Location
+import { useNavigation, useRouter } from 'expo-router';
+import { useLayoutEffect, useState } from 'react';
+import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCalculator } from '../../context/CalculatorContext';
+
+export default function EditLocationScreen() {
+  const navigation = useNavigation();
+  const router = useRouter();
+  const { data, updateField } = useCalculator();
+
+  // State lokal untuk menampilkan status loading
+  const [loading, setLoading] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: 'Lokasi Cerobong' });
+  }, [navigation]);
+
+  // Handler untuk memperbarui alamat teks (opsional)
+  const handleChangeAddress = (text: string) => {
+       updateField('stackLocationAddress', text);
+   };
+
+  // --- FUNGSI UTAMA: MENGAMBIL LOKASI GPS ---
+  const fetchLocation = async () => {
+    setLoading(true);
+    
+    // 1. Meminta Izin Lokasi
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        "Izin Ditolak", 
+        "Aplikasi memerlukan izin lokasi untuk mengambil posisi GPS Anda saat ini."
+      );
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 2. Mengambil Lokasi GPS
+      let location = await Location.getCurrentPositionAsync({});
+      const lat = location.coords.latitude;
+      const lng = location.coords.longitude;
+      
+      // Opsional: Mengubah koordinat menjadi alamat (Reverse Geocoding)
+      let geocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      const addressText = geocode[0] 
+        ? `${geocode[0].street}, ${geocode[0].city}, ${geocode[0].region}` 
+        : `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+
+      // 3. Menyimpan ke Context Global
+      updateField('stackLocationLatitude', lat);
+      updateField('stackLocationLongitude', lng);
+      updateField('stackLocationAddress', addressText); // Menyimpan alamat hasil geocoding
+
+      Alert.alert("Sukses", `Lokasi GPS berhasil diambil:\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\nAlamat: ${addressText}`);
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Gagal", "Tidak dapat mengambil lokasi GPS.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  // ---------------------------------------------------------------------
+
+  return (
+    <View style={styles.container}>
+      
+      {/* Input Alamat Teks */}
+      <Text style={styles.label}>Alamat Lokasi (Otomatis terisi dari GPS)</Text>
+      <TextInput
+        style={styles.input}
+        value={data.stackLocationAddress} 
+        onChangeText={handleChangeAddress} 
+        placeholder="Masukkan alamat cerobong"
+      />
+      
+      {/* Tampilkan Koordinat GPS yang Tersimpan */}
+      <View style={styles.coordinatesBox}>
+        <Text style={styles.coordinateText}>
+          **Latitude:** {data.stackLocationLatitude ? data.stackLocationLatitude.toFixed(6) : 'N/A'}
+        </Text>
+        <Text style={styles.coordinateText}>
+          **Longitude:** {data.stackLocationLongitude ? data.stackLocationLongitude.toFixed(6) : 'N/A'}
+        </Text>
+      </View>
+
+      {/* Tombol Ambil Lokasi GPS */}
+      <View style={styles.buttonContainer}>
+        <Button 
+          title={loading ? "Mengambil Lokasi..." : "Ambil Lokasi Saya Sekarang (GPS)"} 
+          onPress={fetchLocation} 
+          disabled={loading}
+          color="#10B981" // Warna hijau yang menarik untuk GPS
+        />
+      </View>
+      
+      <View style={styles.saveButtonContainer}>
+        <Button title="Simpan" onPress={() => router.back()} color="#003366" />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  label: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  input: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    paddingVertical: 10,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  coordinatesBox: {
+    padding: 15,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  coordinateText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  buttonContainer: {
+    marginBottom: 20,
+  },
+  saveButtonContainer: {
+    marginTop: 10,
+  }
+});
